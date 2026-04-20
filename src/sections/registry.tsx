@@ -48,7 +48,7 @@ export const SECTION_REGISTRY: Record<SectionType, SectionComponent> = {
 
 /** Available variants per section type — used by the composer to pick */
 export const SECTION_VARIANTS: Record<SectionType, string[]> = {
-  hero: ["centered", "split"],
+  hero: ["centered", "split", "minimal"],
   services: ["grid", "rows"],
   about: ["split", "simple"],
   gallery: ["grid", "masonry"],
@@ -57,7 +57,7 @@ export const SECTION_VARIANTS: Record<SectionType, string[]> = {
   pricing: ["default"],
   faq: ["default"],
   contact: ["default"],
-  footer: ["default"],
+  footer: ["default", "simple"],
 };
 
 /** Render a single section by type */
