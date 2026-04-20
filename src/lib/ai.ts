@@ -107,6 +107,9 @@ export async function analyzeBrief(
       };
     }
 
+    // Sanitize data before validation — fix common AI mistakes
+    sanitizeBriefData(rawJson);
+
     // Validate against our schema
     const validation = siteBriefSchema.safeParse(rawJson);
 
@@ -170,4 +173,63 @@ function extractJson(text: string): Record<string, unknown> | null {
   }
 
   return null;
+}
+
+/**
+ * Fix common AI output issues before Zod validation.
+ * The AI sometimes returns values that are close but not exact matches.
+ */
+function sanitizeBriefData(data: Record<string, unknown>): void {
+  const VALID_TONES = ["elegant", "bold", "minimal", "warm", "playful", "corporate", "luxurious"];
+  const VALID_SECTORS = ["beauty", "restaurant", "health", "legal", "creative", "coaching", "tech", "realestate", "education", "retail", "other"];
+  const VALID_PALETTES = ["noir-gold", "ocean-blue", "sage-natural", "warm-terracotta", "soft-blush", "modern-slate", "arctic-white", "dark-emerald"];
+  const VALID_FONTS = ["playfair-lato", "space-dm", "cormorant-montserrat", "sora-inter", "fraunces-outfit", "clash-cabinet"];
+
+  // Fix tone
+  if (typeof data.tone === "string" && !VALID_TONES.includes(data.tone)) {
+    const toneMap: Record<string, string> = {
+      professional: "corporate",
+      modern: "bold",
+      luxury: "luxurious",
+      fun: "playful",
+      friendly: "warm",
+      clean: "minimal",
+      classic: "elegant",
+      sophisticated: "elegant",
+      dark: "luxurious",
+      tech: "bold",
+      creative: "bold",
+    };
+    data.tone = toneMap[data.tone.toLowerCase()] || "elegant";
+  }
+
+  // Fix sector
+  if (typeof data.sector === "string" && !VALID_SECTORS.includes(data.sector)) {
+    data.sector = "other";
+  }
+
+  // Fix palette
+  if (typeof data.paletteKey === "string" && !VALID_PALETTES.includes(data.paletteKey)) {
+    data.paletteKey = "modern-slate";
+  }
+
+  // Fix font
+  if (typeof data.fontPairingKey === "string" && !VALID_FONTS.includes(data.fontPairingKey)) {
+    data.fontPairingKey = "space-dm";
+  }
+
+  // Ensure sections array exists (even if empty for multi-page)
+  if (!Array.isArray(data.sections)) {
+    data.sections = [];
+  }
+
+  // Ensure sectionContents exists
+  if (!data.sectionContents || typeof data.sectionContents !== "object") {
+    data.sectionContents = {};
+  }
+
+  // Ensure meta exists
+  if (!data.meta || typeof data.meta !== "object") {
+    data.meta = { language: "fr" };
+  }
 }
