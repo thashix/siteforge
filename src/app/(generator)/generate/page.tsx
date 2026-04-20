@@ -68,10 +68,10 @@ export default function GeneratePage() {
       setLoadingStep((prev) =>
         prev < LOADING_STEPS.length - 1 ? prev + 1 : prev
       );
-    }, 2500);
+    }, 3500);
 
     try {
-      const response = await fetch("/api/brief/analyze", {
+      const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -82,28 +82,29 @@ export default function GeneratePage() {
 
       const result = await response.json();
 
-      if (result.success) {
-        const brief = result.data as SiteBrief;
-
+      if (result.success && result.html) {
         // Deduct credits
         useCredits("generate");
 
-        // Compose SiteBrief → SiteConfig
-        const config = composeSite(brief);
+        // Save the HTML site to localStorage
+        const siteId = `site_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+        const siteData = {
+          id: siteId,
+          name: businessName || "Mon site",
+          html: result.html,
+          description,
+          createdAt: new Date().toISOString(),
+        };
+        
+        // Save to localStorage
+        const sites = JSON.parse(localStorage.getItem("siteforge_html_sites") || "[]");
+        sites.unshift(siteData);
+        localStorage.setItem("siteforge_html_sites", JSON.stringify(sites));
 
-        // Save to storage (localStorage for MVP)
-        const site = createSite(
-          brief.businessName || businessName || "Mon site",
-          brief,
-          config
-        );
-
-        // Navigate to the saved site's preview
-        router.push(`/preview/${site.id}`);
+        // Navigate to preview
+        router.push(`/preview/html/${siteId}`);
       } else {
-        setError(
-          result.error || "Une erreur est survenue lors de la génération."
-        );
+        setError(result.error || "Une erreur est survenue lors de la génération.");
       }
     } catch (err) {
       console.error("Generation error:", err);

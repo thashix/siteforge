@@ -14,13 +14,23 @@ import { PALETTES } from "@/core/theme";
 // Sites are loaded from localStorage (MVP) / Supabase (future).
 // =============================================================================
 
+interface HtmlSite {
+  id: string;
+  name: string;
+  html: string;
+  description: string;
+  createdAt: string;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [sites, setSites] = useState<StoredSite[]>([]);
+  const [htmlSites, setHtmlSites] = useState<HtmlSite[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     setSites(getAllSites());
+    setHtmlSites(JSON.parse(localStorage.getItem("siteforge_html_sites") || "[]"));
     setLoaded(true);
   }, []);
 
@@ -31,7 +41,17 @@ export default function DashboardPage() {
     }
   }
 
+  function handleDeleteHtml(id: string, name: string) {
+    if (window.confirm(`Supprimer "${name}" ?`)) {
+      const updated = htmlSites.filter((s) => s.id !== id);
+      localStorage.setItem("siteforge_html_sites", JSON.stringify(updated));
+      setHtmlSites(updated);
+    }
+  }
+
   if (!loaded) return null;
+
+  const allEmpty = sites.length === 0 && htmlSites.length === 0;
 
   return (
     <div className="max-w-6xl">
@@ -73,7 +93,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {sites.length === 0 ? (
+      {allEmpty ? (
         /* Empty State */
         <div
           className="
@@ -122,36 +142,80 @@ export default function DashboardPage() {
           </Link>
         </div>
       ) : (
-        /* Site Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AnimatePresence>
-            {sites.map((site, i) => (
-              <SiteCard
-                key={site.id}
-                site={site}
-                index={i}
-                onOpen={() => router.push(`/preview/${site.id}`)}
-                onDelete={() => handleDelete(site.id, site.name)}
-              />
-            ))}
-          </AnimatePresence>
+        <>
+          {/* Site Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <AnimatePresence>
+              {sites.map((site, i) => (
+                <SiteCard
+                  key={site.id}
+                  site={site}
+                  index={i}
+                  onOpen={() => router.push(`/preview/${site.id}`)}
+                  onDelete={() => handleDelete(site.id, site.name)}
+                />
+              ))}
+            </AnimatePresence>
 
-          {/* New site card */}
-          <Link
-            href="/generate"
-            className="
-              flex flex-col items-center justify-center
-              min-h-[220px] rounded-2xl
-              border-2 border-dashed border-[var(--sf-app-border)]
-              hover:border-[var(--sf-app-accent)]/40
-              text-[var(--sf-app-text-muted)] hover:text-[var(--sf-app-accent)]
-              transition-all duration-200
-            "
-          >
-            <PlusIcon className="w-8 h-8 mb-2 opacity-50" />
-            <span className="text-sm font-medium">Nouveau site</span>
-          </Link>
-        </div>
+            {/* New site card */}
+            <Link
+              href="/generate"
+              className="
+                flex flex-col items-center justify-center
+                min-h-[220px] rounded-2xl
+                border-2 border-dashed border-[var(--sf-app-border)]
+                hover:border-[var(--sf-app-accent)]/40
+                text-[var(--sf-app-text-muted)] hover:text-[var(--sf-app-accent)]
+                transition-all duration-200
+              "
+            >
+              <PlusIcon className="w-8 h-8 mb-2 opacity-50" />
+              <span className="text-sm font-medium">Nouveau site</span>
+            </Link>
+          </div>
+
+          {/* HTML Sites (Approach A — Premium) */}
+          {htmlSites.length > 0 && (
+            <div className="mt-10">
+              <h3 className="text-sm font-medium text-[var(--sf-app-text-muted)] mb-4">Sites générés (Premium)</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {htmlSites.map((site, i) => (
+                  <motion.div
+                    key={site.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="group rounded-2xl border border-[var(--sf-app-border)] overflow-hidden hover:border-[var(--sf-app-accent)]/30 transition-all duration-200 bg-[var(--sf-app-surface)]"
+                  >
+                    <div className="h-32 bg-gradient-to-br from-[var(--sf-app-accent)]/20 to-[var(--sf-app-accent)]/5 flex items-center justify-center">
+                      <span className="text-2xl font-bold opacity-20" style={{ fontFamily: "serif" }}>{site.name.charAt(0)}</span>
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-semibold text-sm mb-1 truncate">{site.name}</h3>
+                      <p className="text-[11px] text-[var(--sf-app-text-muted)] mb-3">
+                        {new Date(site.createdAt).toLocaleDateString("fr-FR")}
+                      </p>
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/preview/html/${site.id}`}
+                          className="flex-1 text-center px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--sf-app-accent)] text-white hover:bg-[var(--sf-app-accent-hover)] transition-colors"
+                        >
+                          Ouvrir
+                        </Link>
+                        <button
+                          onClick={() => handleDeleteHtml(site.id, site.name)}
+                          className="px-3 py-1.5 text-xs rounded-lg text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
