@@ -12,7 +12,7 @@ import { buildAnalysisPrompt, buildUserMessage } from "@/core/brief/prompt";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-sonnet-4-20250514";
-const MAX_TOKENS = 4096;
+const MAX_TOKENS = 8192;
 
 interface AnalysisResult {
   success: true;

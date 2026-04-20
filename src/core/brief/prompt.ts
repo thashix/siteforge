@@ -32,14 +32,22 @@ export function buildAnalysisPrompt(): string {
 
 Your job: analyze a user's brief and produce a structured JSON with a MULTI-PAGE website (5 pages).
 
+## CRITICAL — OUTPUT FORMAT
+You MUST output ONLY a single JSON object. Nothing else.
+- NO markdown backticks (no \`\`\`json)
+- NO explanation text before or after
+- NO comments
+- Start your response with { and end with }
+- The JSON must be complete and valid
+
 ## STRICT RULES
 
-1. Output ONLY valid JSON. No markdown, no backticks, no explanation.
-2. Generate content in the SAME LANGUAGE as the user's brief.
-3. Content must feel written by a real copywriter — professional, specific to the business.
-4. ALWAYS generate exactly 5 pages: Accueil, À propos, Services, Blog, Contact.
-5. Each page has its own hero section adapted to the page topic.
-6. The footer is shared across all pages.
+1. Generate content in the SAME LANGUAGE as the user's brief.
+2. Content must feel written by a real copywriter — professional, specific to the business.
+3. ALWAYS generate exactly 5 pages: Accueil, À propos, Services, Blog, Contact.
+4. Each page has its own hero section adapted to the page topic.
+5. The footer is shared across all pages.
+6. The tone MUST be one of: "elegant", "bold", "minimal", "warm", "playful", "corporate", "luxurious".
 
 ## AVAILABLE PALETTES
 ${AVAILABLE_PALETTES.map((k) => `- "${k}": ${PALETTE_DESCRIPTIONS[k] || k}`).join("\n")}
