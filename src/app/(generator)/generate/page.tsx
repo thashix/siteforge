@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { SiteBrief } from "@/types";
 import { composeSite } from "@/core/composer";
 import { createSite } from "@/lib/site-storage";
-import { hasCredits, useCredits, getCost } from "@/lib/credits";
+import { hasCredits, useCredits, getCost, getCreditsFromDB, setCachedBalance } from "@/lib/credits";
 import { CreditBadge } from "@/components/editor/credit-badge";
 import { BuyCreditsModal } from "@/components/editor/buy-credits-modal";
 import { InsufficientCredits } from "@/components/editor/credit-gate";
@@ -37,9 +37,18 @@ export default function GeneratePage() {
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showBuyModal, setShowBuyModal] = useState(false);
+  const [creditsLoaded, setCreditsLoaded] = useState(false);
 
   const canSubmit = description.trim().length >= 10;
-  const hasEnoughCredits = hasCredits("generate");
+  const hasEnoughCredits = creditsLoaded ? hasCredits("generate") : true;
+
+  // Load credits from DB on mount
+  useEffect(() => {
+    getCreditsFromDB().then((b) => {
+      setCachedBalance(b);
+      setCreditsLoaded(true);
+    });
+  }, []);
 
   async function handleGenerate() {
     if (!canSubmit || isGenerating) return;

@@ -140,8 +140,10 @@ function PlayIcon({ className }: { className?: string }) {
 function CreditBadgeSimple() {
   const [balance, setBalance] = useState(0);
   useEffect(() => {
-    import("@/lib/credits").then((mod) => {
-      setBalance(mod.getCredits());
+    import("@/lib/credits").then(async (mod) => {
+      const dbBalance = await mod.getCreditsFromDB();
+      mod.setCachedBalance(dbBalance);
+      setBalance(dbBalance);
     });
   }, []);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getCredits } from "@/lib/credits";
+import { getCredits, getCreditsFromDB, setCachedBalance } from "@/lib/credits";
 
 // =============================================================================
 // CREDIT BADGE
@@ -18,9 +18,13 @@ export function CreditBadge({ onClickBuy, className }: CreditBadgeProps) {
   const [balance, setBalance] = useState<number>(0);
 
   useEffect(() => {
-    setBalance(getCredits());
+    // Load from DB on mount
+    getCreditsFromDB().then((b) => {
+      setCachedBalance(b);
+      setBalance(b);
+    });
 
-    // Poll for changes (simple approach for MVP)
+    // Poll cache for changes after actions
     const interval = setInterval(() => setBalance(getCredits()), 2000);
     return () => clearInterval(interval);
   }, []);
