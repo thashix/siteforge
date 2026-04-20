@@ -259,9 +259,28 @@ export function useSiteEditor(initialConfig: SiteConfig): SiteEditor {
 
   const updateSectionContent = useCallback(
     (sectionId: string, content: SectionContent) => {
-      updateActiveSections((s) => s.map((x) => (x.id === sectionId ? { ...x, content } : x)));
+      updateConfig((config) => {
+        if (config.pages && config.pages.length > 0) {
+          // Search in ALL pages, not just active
+          return {
+            ...config,
+            pages: config.pages.map((p) => ({
+              ...p,
+              sections: p.sections.map((s) =>
+                s.id === sectionId ? { ...s, content } : s
+              ),
+            })),
+          };
+        }
+        return {
+          ...config,
+          sections: config.sections.map((s) =>
+            s.id === sectionId ? { ...s, content } : s
+          ),
+        };
+      });
     },
-    [updateActiveSections]
+    [updateConfig]
   );
 
   const changeSectionVariant = useCallback(

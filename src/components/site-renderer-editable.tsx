@@ -50,6 +50,21 @@ export function SiteRendererEditable({ editor, onBuyCredits }: SiteRendererEdita
   }
 
   function handleAIUpdate(sectionId: string, content: SectionContent) {
+    console.log("[AI Update] sectionId:", sectionId, "content:", content);
+    
+    // Force update through all pages if multi-page
+    if (config.pages && config.pages.length > 0) {
+      // The section might be on any page, not just the active one
+      // updateSectionContent only updates active page sections
+      // So we need to find which page has this section
+      for (const page of config.pages) {
+        if (page.sections.some(s => s.id === sectionId)) {
+          editor.updateSectionContent(sectionId, content);
+          return;
+        }
+      }
+    }
+    
     editor.updateSectionContent(sectionId, content);
   }
 
