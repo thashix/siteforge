@@ -1,0 +1,60 @@
+// =============================================================================
+// SITEFORGE — Database Schema
+// =============================================================================
+// Models:
+//   User     — authenticated user (synced with Supabase Auth)
+//   Site     — a generated site belonging to a user
+// 
+// The SiteConfig JSON is stored directly in the Site model.
+// This avoids over-normalization for the MVP while keeping
+// the structured SiteConfig type as the source of truth in code.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  avatarUrl String?
+  plan      String   @default("free") // free | pro | business
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sites Site[]
+}
+
+model Site {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Human-readable
+  name      String   // "Mon salon de coiffure"
+  slug      String   @unique // "mon-salon-de-coiffure-abc123"
+
+  // The core data
+  brief     Json     // Stored SiteBrief (AI analysis result)
+  config    Json     // Stored SiteConfig (renderable configuration)
+
+  // Status
+  status    String   @default("draft") // draft | published | archived
+  
+  // Published URL info
+  subdomain  String?  @unique // user-chosen subdomain: xxx.siteforge.app
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([slug])
+  @@index([subdomain])
+}

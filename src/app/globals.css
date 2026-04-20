@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+/* =============================================================================
+   SITEFORGE — Global Styles
+   ============================================================================= */
+
+/* -- SaaS App UI variables ------------------------------------------------- */
+:root {
+  --sf-app-bg: #09090B;
+  --sf-app-surface: #18181B;
+  --sf-app-surface-hover: #1F1F23;
+  --sf-app-border: #27272A;
+  --sf-app-text: #FAFAFA;
+  --sf-app-text-muted: #A1A1AA;
+  --sf-app-accent: #6366F1;
+  --sf-app-accent-hover: #818CF8;
+}
+
+@theme inline {
+  --color-background: var(--sf-app-bg);
+  --color-foreground: var(--sf-app-text);
+}
+
+body {
+  background: var(--sf-app-bg);
+  color: var(--sf-app-text);
+  font-family: "Inter", "DM Sans", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* -- Smooth scroll for generated sites ------------------------------------- */
+html {
+  scroll-behavior: smooth;
+}
+
+/* -- Selection color ------------------------------------------------------- */
+::selection {
+  background: var(--sf-app-accent);
+  color: white;
+}
+
+/* -- Scrollbar ------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* -- Generated site base styles -------------------------------------------- */
+.sf-site {
+  font-family: var(--sf-font-body);
+  font-weight: var(--sf-font-body-weight);
+  color: var(--sf-text);
+  background-color: var(--sf-background);
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+.sf-site h1,
+.sf-site h2,
+.sf-site h3,
+.sf-site h4,
+.sf-site h5,
+.sf-site h6 {
+  font-family: var(--sf-font-heading);
+  font-weight: var(--sf-font-heading-weight);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+/* -- Prevent layout shifts on mobile --------------------------------------- */
+.sf-site img {
+  max-width: 100%;
+  height: auto;
+}
+
+.sf-site section {
+  overflow-x: hidden;
+}
+
+/* -- Focus visible for accessibility --------------------------------------- */
+.sf-site a:focus-visible,
+.sf-site button:focus-visible,
+.sf-site input:focus-visible,
+.sf-site textarea:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
