@@ -22,11 +22,14 @@ import { InsufficientCredits } from "@/components/editor/credit-gate";
 /** Loading step messages shown during generation */
 const LOADING_STEPS = [
   "Analyse de votre brief...",
-  "Identification du secteur et du style...",
-  "Sélection de la palette et des polices...",
-  "Génération du contenu...",
-  "Composition des sections...",
-  "Finalisation de votre site...",
+  "Recherche d'inspiration design...",
+  "Sélection des images et couleurs...",
+  "Création du design premium...",
+  "Construction des sections...",
+  "Ajout des animations et effets...",
+  "Optimisation mobile...",
+  "Touches finales...",
+  "Presque prêt...",
 ];
 
 export default function GeneratePage() {

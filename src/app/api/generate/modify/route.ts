@@ -3,8 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 // =============================================================================
 // POST /api/generate/modify
 // =============================================================================
-// Takes existing HTML + instruction, returns modified HTML.
-// Used by the AI chat panel to make changes to generated sites.
+// Optimized: AI returns JSON patches (search/replace) instead of full HTML.
+// This is 5-10x faster and more reliable than rewriting 15000 tokens.
+//
+// Flow:
+// 1. Send HTML + instruction to Claude
+// 2. Claude returns an array of {search, replace} patches
+// 3. We apply them sequentially to the HTML
+// 4. Return the modified HTML
 // =============================================================================
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
@@ -32,22 +38,12 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 16000,
-        system: `You are a web designer modifying an existing HTML website based on a user's instruction.
-
-RULES:
-1. Output ONLY the complete modified HTML. Start with <!DOCTYPE html>, end with </html>.
-2. NO markdown, NO backticks, NO explanation. JUST the full HTML.
-3. Keep ALL existing content, styles, and structure unless the user specifically asks to change them.
-4. Apply ONLY the requested change. Don't remove or alter anything else.
-5. Maintain the same design quality and visual consistency.
-6. If asked to change images, use Unsplash URLs: https://images.unsplash.com/photo-{id}?w=1200&h=800&fit=crop&q=80
-7. If asked to change colors, update the CSS custom properties consistently throughout.
-8. Keep all JavaScript functionality (scroll animations, menu, accordion, etc.).`,
+        max_tokens: 4096,
+        system: MODIFY_SYSTEM_PROMPT,
         messages: [
           {
             role: "user",
-            content: `Here is the current website HTML:\n\n${html}\n\n---\n\nUser instruction: ${instruction}\n\nOutput the COMPLETE modified HTML:`,
+            content: `CURRENT HTML:\n\n${html}\n\n---\n\nINSTRUCTION: ${instruction}`,
           },
         ],
       }),
@@ -65,17 +61,114 @@ RULES:
       return NextResponse.json({ success: false, error: "No response from AI" }, { status: 422 });
     }
 
-    // Extract HTML
-    const modifiedHtml = extractHtml(textBlock.text);
-    if (!modifiedHtml) {
-      return NextResponse.json({ success: false, error: "Failed to extract modified HTML" }, { status: 422 });
+    // Try to parse as JSON patches first
+    const patches = extractPatches(textBlock.text);
+
+    if (patches && patches.length > 0) {
+      // Apply patches
+      let modifiedHtml = html;
+      let appliedCount = 0;
+
+      for (const patch of patches) {
+        if (patch.search && modifiedHtml.includes(patch.search)) {
+          modifiedHtml = modifiedHtml.replace(patch.search, patch.replace);
+          appliedCount++;
+        }
+      }
+
+      if (appliedCount > 0) {
+        return NextResponse.json({
+          success: true,
+          html: modifiedHtml,
+          message: `${appliedCount} modification${appliedCount > 1 ? "s" : ""} appliquée${appliedCount > 1 ? "s" : ""}`,
+        });
+      }
     }
 
-    return NextResponse.json({ success: true, html: modifiedHtml });
+    // Fallback: if patches didn't work, try to extract full HTML
+    const fullHtml = extractHtml(textBlock.text);
+    if (fullHtml) {
+      return NextResponse.json({ success: true, html: fullHtml, message: "Site modifié" });
+    }
+
+    return NextResponse.json({ success: false, error: "Impossible d'appliquer les modifications" }, { status: 422 });
+
   } catch (err) {
     console.error("[Modify] Error:", err);
     return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
+}
+
+const MODIFY_SYSTEM_PROMPT = `You are modifying an existing HTML website based on the user's instruction.
+
+## OUTPUT FORMAT
+Output a JSON array of search/replace patches. Each patch replaces a specific string in the HTML.
+
+Format:
+[
+  {
+    "search": "exact string to find in the HTML",
+    "replace": "new string to replace it with"
+  }
+]
+
+## RULES
+1. Output ONLY the JSON array. No markdown, no backticks, no explanation.
+2. The "search" value must be an EXACT substring from the current HTML (copy it precisely).
+3. Make the minimum number of patches needed. Don't rewrite everything.
+4. Each search string must be unique enough to match only once.
+5. Keep all existing functionality (animations, menu, accordion).
+6. For color changes, patch the CSS custom properties in the :root { } block.
+7. For text changes, patch only the specific text elements.
+8. For adding new elements, find the right insertion point and include surrounding context in "search".
+9. For image changes, use Unsplash URLs: https://images.unsplash.com/photo-{id}?w=1200&h=800&fit=crop&q=80
+10. Write content in the same language as the existing site.
+
+## EXAMPLES
+
+User: "Change the main title to 'Bienvenue chez nous'"
+Output:
+[{"search": "<h1 class=\\"hero-title\\">L'Excellence au bout des doigts</h1>", "replace": "<h1 class=\\"hero-title\\">Bienvenue chez nous</h1>"}]
+
+User: "Change the accent color to blue"
+Output:
+[{"search": "--accent: #C8A45C;", "replace": "--accent: #3B82F6;"},{"search": "--accent-light: #E8D5A8;", "replace": "--accent-light: #93C5FD;"}]
+
+User: "Add a new service: Consulting"
+Output:
+[{"search": "</div>\\n    <!-- end services grid -->", "replace": "<div class=\\"service-card\\">\\n<div class=\\"service-icon\\">💼</div>\\n<h3>Consulting</h3>\\n<p>Accompagnement stratégique personnalisé pour votre entreprise.</p>\\n</div>\\n</div>\\n<!-- end services grid -->"}]`;
+
+function extractPatches(text: string): Array<{ search: string; replace: string }> | null {
+  const trimmed = text.trim();
+
+  // Direct JSON parse
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].search !== undefined) {
+      return parsed;
+    }
+  } catch {}
+
+  // Extract from code fences
+  const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  if (fenceMatch) {
+    try {
+      const parsed = JSON.parse(fenceMatch[1].trim());
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+
+  // Find array in text
+  const first = trimmed.indexOf("[");
+  const last = trimmed.lastIndexOf("]");
+  if (first !== -1 && last > first) {
+    try {
+      const parsed = JSON.parse(trimmed.slice(first, last + 1));
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+
+  return null;
 }
 
 function extractHtml(text: string): string | null {

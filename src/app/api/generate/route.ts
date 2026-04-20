@@ -27,7 +27,20 @@ export async function POST(request: NextRequest) {
     }
 
     const systemPrompt = buildSystemPrompt();
-    const userMessage = `Business name: ${businessName || "Mon Entreprise"}\n\nBrief:\n${description}`;
+    // Add design seed for variety
+    const designSeeds = [
+      "Use asymmetric layouts with off-grid elements",
+      "Use a cinematic wide-screen hero with parallax feel",
+      "Use a split-screen hero with image on the right",
+      "Use a minimal hero with large typography and no image",
+      "Use a video-style hero with dark overlay and centered text",
+      "Use a magazine-editorial style with overlapping elements",
+      "Use a bold geometric style with angular shapes",
+      "Use an organic flowing style with curves and rounded shapes",
+    ];
+    const seed = designSeeds[Math.floor(Math.random() * designSeeds.length)];
+    
+    const userMessage = `Business name: ${businessName || "Mon Entreprise"}\n\nBrief:\n${description}\n\nDESIGN DIRECTION: ${seed}\n\nGenerate a UNIQUE website that stands out. Do NOT create a generic template.`;
 
     const response = await fetch(ANTHROPIC_API_URL, {
       method: "POST",
@@ -39,6 +52,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 16000,
+        temperature: 0.9,
         system: systemPrompt,
         messages: [{ role: "user", content: userMessage }],
       }),
