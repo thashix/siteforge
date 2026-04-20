@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // =============================================================================
-// POST /api/generate — Premium Site Generation
+// POST /api/generate — Lightweight Single-Page Generation
 // =============================================================================
-// Flow:
-//   1. Search the web for design inspiration based on the business sector
-//   2. Generate a multi-page HTML website with inline editing attributes
-//   3. Return { pages: [{name, slug, html}], nav: string }
+// Optimized for Anthropic Tier 1 (8K output tokens/min):
+//   - Single page (not multi-page)
+//   - 7K max tokens
+//   - Web search optional with fast timeout
+//   - Retry on 429
 // =============================================================================
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
@@ -25,332 +26,159 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "AI service not configured" }, { status: 500 });
     }
 
-    // -----------------------------------------------------------------------
-    // STEP 1: Try web search for inspiration (skip if rate limited)
-    // -----------------------------------------------------------------------
-    let inspiration = "";
-    try {
-      const searchController = new AbortController();
-      const searchTimeout = setTimeout(() => searchController.abort(), 8000); // 8s timeout
-
-      const searchResponse = await fetch(ANTHROPIC_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        signal: searchController.signal,
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 800,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: [{
-            role: "user",
-            content: `Find 3 premium website designs for: ${description.slice(0, 150)}. Briefly describe their visual style, colors, and layout.`,
-          }],
-        }),
-      });
-
-      clearTimeout(searchTimeout);
-
-      if (searchResponse.ok) {
-        const searchData = await searchResponse.json();
-        const texts = searchData.content
-          ?.filter((b: { type: string }) => b.type === "text")
-          ?.map((b: { text: string }) => b.text)
-          ?.join("\n");
-        if (texts) inspiration = texts;
-      }
-    } catch {
-      console.log("[Generate] Web search skipped (timeout or rate limit)");
-    }
-
-    // Wait 2 seconds between API calls to avoid rate limiting
-    await new Promise((r) => setTimeout(r, 2000));
-
-    // -----------------------------------------------------------------------
-    // STEP 2: Generate the full multi-page website
-    // -----------------------------------------------------------------------
-    const designSeeds = [
-      "asymmetric layouts with off-grid elements and overlapping layers",
-      "cinematic wide-screen hero with parallax scrolling feel",
-      "split-screen hero with dramatic image on the right",
-      "magazine-editorial style with overlapping typography and images",
-      "bold geometric style with angular shapes and strong contrast",
-      "organic flowing style with curves, rounded shapes and soft gradients",
-      "luxury minimal with massive whitespace and thin typography",
-      "dark immersive with full-bleed images and light text overlays",
+    // Design variety
+    const seeds = [
+      "asymmetric layout with overlapping elements",
+      "cinematic hero with parallax feel",
+      "split-screen hero with image right",
+      "editorial style with large typography",
+      "geometric shapes with strong contrast",
+      "organic curves and soft gradients",
+      "luxury minimal with massive whitespace",
+      "dark immersive with light text",
     ];
-    const seed = designSeeds[Math.floor(Math.random() * designSeeds.length)];
+    const seed = seeds[Math.floor(Math.random() * seeds.length)];
 
-    const systemPrompt = buildSystemPrompt(inspiration);
-    const userMessage = buildUserMessage(businessName, description, seed);
+    const response = await fetchWithRetry(ANTHROPIC_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 7000,
+        temperature: 0.8,
+        system: SYSTEM_PROMPT,
+        messages: [{
+          role: "user",
+          content: `Business: ${businessName || "Mon Entreprise"}
+Brief: ${description}
+Design direction: ${seed}
 
-    // Retry logic for rate limiting
-    let response: Response | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      response = await fetch(ANTHROPIC_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 12000,
-          temperature: 0.85,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userMessage }],
-        }),
-      });
+Generate the complete HTML now. Start with <!DOCTYPE html>:`,
+        }],
+      }),
+    });
 
-      if (response.status === 429) {
-        // Rate limited — wait and retry
-        const waitTime = (attempt + 1) * 5000; // 5s, 10s, 15s
-        console.log(`[Generate] Rate limited, waiting ${waitTime}ms (attempt ${attempt + 1}/3)`);
-        await new Promise((r) => setTimeout(r, waitTime));
-        continue;
-      }
-      break;
+    if (!response) {
+      return NextResponse.json({ success: false, error: "API non disponible, réessayez dans 1 minute" }, { status: 429 });
     }
 
-    if (!response || !response.ok) {
-      const err = response ? await response.text() : "No response";
-      console.error("[Generate] API error:", response?.status, err);
-      return NextResponse.json({ success: false, error: `API error: ${response?.status || "unknown"}` }, { status: 422 });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("[Generate] Error:", response.status, err);
+      return NextResponse.json({ success: false, error: `Erreur: ${response.status}` }, { status: 422 });
     }
 
     const data = await response.json();
-    const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-    if (!textBlock?.text) {
-      return NextResponse.json({ success: false, error: "No response from AI" }, { status: 422 });
+    const text = data.content?.find((b: { type: string }) => b.type === "text")?.text;
+    if (!text) {
+      return NextResponse.json({ success: false, error: "Pas de réponse" }, { status: 422 });
     }
 
-    // Extract HTML
-    const html = extractHtml(textBlock.text);
+    const html = extractHtml(text);
     if (!html) {
-      return NextResponse.json({ success: false, error: "Failed to extract HTML" }, { status: 422 });
+      return NextResponse.json({ success: false, error: "HTML invalide" }, { status: 422 });
     }
 
-    return NextResponse.json({
-      success: true,
-      html,
-      title: businessName || "Mon Site",
-    });
+    return NextResponse.json({ success: true, html, title: businessName || "Mon Site" });
 
   } catch (err) {
     console.error("[Generate] Error:", err);
-    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Erreur interne" }, { status: 500 });
   }
 }
 
 // =============================================================================
-// SYSTEM PROMPT
+// SYSTEM PROMPT — Compact, single-page, <7K tokens output
 // =============================================================================
 
-function buildSystemPrompt(inspiration: string): string {
-  const inspirationBlock = inspiration
-    ? `\n## DESIGN INSPIRATION FROM REAL WEBSITES\nUse these as inspiration for your design decisions:\n${inspiration}\n`
-    : "";
+const SYSTEM_PROMPT = `You are an elite web designer. Generate a COMPLETE standalone HTML file for a premium one-page website.
 
-  return `You are an elite web designer creating stunning, premium websites. You generate COMPLETE, STANDALONE HTML files.
-${inspirationBlock}
-## YOUR OUTPUT
-Output ONLY the complete HTML code. Start with <!DOCTYPE html> and end with </html>.
-No explanation, no markdown, no backticks. JUST THE HTML.
+OUTPUT: Only HTML. Start with <!DOCTYPE html>, end with </html>. No markdown, no backticks, no explanation.
 
-## INLINE EDITING SUPPORT
-Add these data attributes to all editable elements so users can click to edit them:
-- data-editable="text" on all text elements (h1, h2, h3, p, span, a, li, button text)
-- data-editable="image" on all img tags and background-image divs
-- data-editable="link" on all links/buttons with href
-- data-editable="section" on each <section> tag
-Each editable element should have a unique data-id="element-{number}" attribute.
+STRUCTURE (one page, scroll sections):
+1. Nav — sticky, backdrop-blur, logo + anchor links + CTA button
+2. Hero — MUST have: fullscreen background image with dark overlay (rgba(0,0,0,0.5)), large white headline (4-5rem), subtitle, CTA button
+3. 4-6 more sections chosen from: Services, About, Gallery, Testimonials, Pricing/Menu, FAQ, Stats, CTA Banner, Contact
+4. Footer — columns with brand, links, social icons, copyright
 
-## MULTI-PAGE STRUCTURE
-Generate a MULTI-PAGE site using JavaScript-based page switching (all in one HTML file).
-Each "page" is a <div class="page" data-page="slug"> that is shown/hidden.
+Choose sections that fit the business. A restaurant needs a Menu, not Pricing. A photographer needs Gallery, not FAQ.
 
-Required pages (adapt names to the business language):
-- Home (data-page="home") — hero + key sections
-- About (data-page="about") — story, team, values
-- Services/Menu/Products (data-page="services") — what the business offers (adapt name)
-- Gallery/Portfolio (data-page="gallery") — visual showcase
-- Contact (data-page="contact") — form + info
+IMAGES — Use Unsplash:
+https://images.unsplash.com/photo-{ID}?w={W}&h={H}&fit=crop&q=80
 
-The navigation must switch between pages with smooth transitions.
-Include this JavaScript for page switching:
-\`\`\`
-function navigateTo(page) {
-  document.querySelectorAll('.page').forEach(p => {
-    p.style.display = 'none';
-    p.classList.remove('page-active');
-  });
-  const target = document.querySelector('[data-page="' + page + '"]');
-  if (target) {
-    target.style.display = 'block';
-    target.classList.add('page-active');
-    window.scrollTo({top: 0, behavior: 'smooth'});
-  }
-  document.querySelectorAll('[data-nav]').forEach(n => {
-    n.classList.toggle('nav-active', n.getAttribute('data-nav') === page);
-  });
-}
-\`\`\`
+IDs by sector:
+- Food: 1517248135467-4c7edcad34c4, 1414235077428-338989a2e8c0, 1504674900247-0877df9cc836, 1555396273-367ea4eb4db5, 1466978913421-dad2ebd01d17
+- Beauty: 1560066984-138dadb4c035, 1522337360788-8b13dee7a37e, 1487412947147-5cebf100ffc2, 1516975080664-ed2fc6a32937
+- Tech: 1497366216548-37526070297c, 1460925895917-afdab827c52f, 1551434678-e076c223a692, 1498050108023-c5249f4df085
+- Photo: 1606993907291-d86efa9b94db, 1554048612-b6a83d2ed2c4, 1542038784456-1ea8e935640e, 1493863641943-9b68992a8d07
+- Fashion: 1441986300917-64674bd600d8, 1558171813-4c2ab4e38ee0, 1490481651871-ab68de25d43d, 1515886657613-9f3515b0c78f
+- Fitness: 1534438327276-14e5300c3a48, 1571019613454-1cb2f99b2d8b, 1517836357463-d25dfeac3438
+- Real Estate: 1512917774080-9991f1c4c750, 1502672260266-1c1ef2d93688, 1600596542815-ffad4c1539a9
+- General: 1486406146926-c627a92ad1ab, 1497366811353-6870744d04b2, 1553877522-43269d4ea984
 
-## DESIGN REQUIREMENTS — PREMIUM LEVEL
+DESIGN RULES:
+- Google Fonts: 2 fonts (serif/display headings + sans body)
+- CSS custom properties for colors
+- Alternate light/dark section backgrounds
+- Generous padding: 80-120px per section
+- Hover effects on all cards, buttons, links
+- IntersectionObserver scroll reveal animations
+- Mobile responsive with hamburger menu
+- Form uses mailto: for submission
+- Add data-editable="text" on text elements, data-editable="image" on images
 
-### Visual Quality
-- The site must look like it was designed by a top agency charging €10,000+
-- Rich, immersive hero sections with full-screen backgrounds
-- Generous spacing (sections: 100-140px vertical padding)
-- Sophisticated typography hierarchy with dramatic size contrast
-- Micro-interactions and hover effects on EVERY interactive element
-- Smooth scroll behavior and entrance animations
-- Professional color harmony with strong accent usage
+COLOR SCHEMES (pick based on brief):
+- Dark/luxury: bg #0D0D0D, accent #C8A45C
+- Modern/tech: bg #0F172A or #FFF, accent #6366F1
+- Warm/organic: bg #FDFAF5, accent #B5754E
+- Clean/medical: bg #FFF, accent #2563EB
+- Creative: bg #18181B, accent #E24B4A
+- Feminine: bg #FFF5F5, accent #D4748E
 
-### Images — USE UNSPLASH
-Use real images from Unsplash: https://images.unsplash.com/photo-{id}?w={width}&h={height}&fit=crop&q=80
-
-PHOTOGRAPHY/CREATIVE:
-- 1606993907291-d86efa9b94db, 1554048612-b6a83d2ed2c4, 1542038784456-1ea8e935640e
-- 1493863641943-9b68992a8d07, 1507003211169-0a1dd7228f2d, 1494790108377-be9c29b29330
-
-BEAUTY/SALON:
-- 1560066984-138dadb4c035, 1522337360788-8b13dee7a37e, 1487412947147-5cebf100ffc2
-- 1516975080664-ed2fc6a32937, 1580618672591-3c4eb24e7c54
-
-RESTAURANT/FOOD:
-- 1517248135467-4c7edcad34c4, 1414235077428-338989a2e8c0, 1504674900247-0877df9cc836
-- 1555396273-367ea4eb4db5, 1466978913421-dad2ebd01d17, 1528605248644-14dd04022da1
-
-TECH/AGENCY:
-- 1497366216548-37526070297c, 1460925895917-afdab827c52f, 1522071820038-ad15a96e97c3
-- 1551434678-e076c223a692, 1498050108023-c5249f4df085, 1504384308090-c894fdcc538d
-
-FASHION/RETAIL:
-- 1441986300917-64674bd600d8, 1558171813-4c2ab4e38ee0, 1445205170230-053b530db579
-- 1490481651871-ab68de25d43d, 1469334031218-e382a71b716b, 1515886657613-9f3515b0c78f
-
-FITNESS/WELLNESS:
-- 1534438327276-14e5300c3a48, 1571019613454-1cb2f99b2d8b, 1517836357463-d25dfeac3438
-- 1544367567-0f2fcb009e0b, 1518611012118-696072aa579a
-
-REAL ESTATE:
-- 1512917774080-9991f1c4c750, 1502672260266-1c1ef2d93688, 1560448204-e02f11c3d0e2
-- 1600596542815-ffad4c1539a9, 1600585154340-be6161a56a0c
-
-GENERAL/CORPORATE:
-- 1486406146926-c627a92ad1ab, 1497366811353-6870744d04b2, 1553877522-43269d4ea984
-- 1542744173-8e7e53415bb0, 1497215728101-856f4ea42174
-
-### Section Selection — ADAPT TO THE BUSINESS
-Choose sections that make sense for THIS business. Examples:
-- Restaurant → Menu/Carte section (NOT pricing), reservation form, chef story, ambiance gallery
-- Photographer → Massive portfolio gallery, process section, booking
-- Boutique → Lookbook, collections, newsletter signup
-- Coach → Process/methodology, transformation stories, booking
-- Agency → Case studies, team, process, stats
-- Salon → Services with prices, before/after gallery, booking
-
-DO NOT use the same sections for every business.
-
-### CSS — SOPHISTICATED
-- CSS custom properties for color scheme consistency
-- Google Fonts (2 fonts: display/serif for headings, sans for body)
-- @keyframes animations for entrances
-- IntersectionObserver for scroll reveal with staggered delays
-- Responsive: works perfectly on mobile with hamburger menu
-- Backdrop-filter: blur for nav and overlays
-- Creative use of gradients, overlays, and blend modes
-- box-shadow and transform for depth and hover effects
-
-### JavaScript — INTERACTIVE
-- Page navigation (show/hide pages)
-- Scroll reveal IntersectionObserver
-- Mobile hamburger menu toggle
-- FAQ accordion if FAQ section exists
-- Smooth scroll within pages
-- Form mailto: submission
-- Navbar background change on scroll
-- Counter animation for stats sections
-
-### Typography — Match the tone:
-- Luxurious: Playfair Display + Lato
-- Modern/Tech: Space Grotesk + DM Sans  
+FONTS (pick based on tone):
+- Luxury: Playfair Display + Lato
+- Modern: Space Grotesk + DM Sans
 - Sophisticated: Cormorant Garamond + Montserrat
 - Friendly: Sora + Inter
 - Creative: DM Serif Display + Plus Jakarta Sans
-- Organic/Warm: Fraunces + Outfit
 
-### Color Scheme — Match the brief:
-- Dark/luxury → #0D0D0D bg, #C8A45C accent
-- Modern/tech → #0F172A bg or #FFFFFF, #6366F1 accent
-- Warm/organic → #FDFAF5 bg, #B5754E accent
-- Clean/medical → #FFFFFF bg, #2563EB accent
-- Creative/bold → #18181B bg, #E24B4A accent
-- Feminine/soft → #FFF5F5 bg, #D4748E accent
-- Nature/eco → #F0F4EE bg, #5B8C5A accent
-
-### Content Quality
-- ALL content must be SPECIFIC to this exact business — no generic text
-- Use the business name, location, and details from the brief
-- Testimonial names should feel real and diverse
-- FAQ answers: 2-3 detailed sentences each
-- Contact info: use details from the brief or generate realistic ones
+CRITICAL:
+- Hero MUST have visible text (white/light) OVER the dark overlay
+- ALL text must be readable (proper contrast)
+- NO empty sections, NO placeholder text
+- Content must be SPECIFIC to the business (use their name, services, location)
 - Write in the same language as the brief
-
-### Quality Checklist:
-- [ ] Hero MUST have a dark overlay (rgba black 50-70%) over the background image
-- [ ] Hero MUST have a large headline text (4-6rem, white or light colored) VISIBLE over the image
-- [ ] Hero MUST have a subtitle and a CTA button
-- [ ] All sections have generous padding (min 80px top/bottom)
-- [ ] Typography: hero title 4-6rem, section titles 2.5-3rem, body 1rem+
-- [ ] Hover effects on ALL interactive elements
-- [ ] Scroll animations on every section
-- [ ] Mobile responsive with hamburger menu
-- [ ] Real Unsplash images everywhere (NO placeholders)
-- [ ] Footer has multiple columns with social icons
-- [ ] Color scheme matches the brief's mood
-- [ ] Multi-page navigation works
-- [ ] data-editable attributes on all text/image/link elements
-- [ ] Each page has unique, relevant content
-- [ ] NO Lorem ipsum or placeholder text anywhere
-- [ ] Text is ALWAYS readable — use dark overlays on images, proper contrast`;
-}
-
-function buildUserMessage(businessName: string, description: string, seed: string): string {
-  return `Business name: ${businessName || "Mon Entreprise"}
-
-Brief:
-${description}
-
-DESIGN DIRECTION: ${seed}
-
-Generate a UNIQUE, PREMIUM, MULTI-PAGE website. Each page must have distinct content.
-Make it look like a €10,000 agency-designed website. Start with <!DOCTYPE html>:`;
-}
+- Keep total HTML under 6000 tokens — be concise in CSS, avoid redundancy`;
 
 // =============================================================================
-// HTML EXTRACTION
-// =============================================================================
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3): Promise<Response | null> {
+  for (let i = 0; i < retries; i++) {
+    const res = await fetch(url, options);
+    if (res.status === 429) {
+      const wait = (i + 1) * 8000;
+      console.log(`[Generate] Rate limit, waiting ${wait}ms (${i + 1}/${retries})`);
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
+    return res;
+  }
+  return null;
+}
 
 function extractHtml(text: string): string | null {
-  const trimmed = text.trim();
-  if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || trimmed.startsWith("<!doctype")) {
-    return trimmed;
-  }
-  const fenceMatch = trimmed.match(/```(?:html)?\s*\n?([\s\S]*?)\n?```/);
-  if (fenceMatch) return fenceMatch[1].trim();
-  const docIdx = trimmed.indexOf("<!DOCTYPE");
-  const htmlIdx = trimmed.indexOf("<html");
-  const start = docIdx !== -1 ? docIdx : htmlIdx;
-  if (start !== -1) {
-    const end = trimmed.lastIndexOf("</html>");
-    if (end !== -1) return trimmed.slice(start, end + 7);
-    return trimmed.slice(start);
+  const t = text.trim();
+  if (t.startsWith("<!DOCTYPE") || t.startsWith("<!doctype") || t.startsWith("<html")) return t;
+  const m = t.match(/```(?:html)?\s*\n?([\s\S]*?)\n?```/);
+  if (m) return m[1].trim();
+  const s = Math.max(t.indexOf("<!DOCTYPE"), t.indexOf("<!doctype"), t.indexOf("<html"));
+  if (s !== -1) {
+    const e = t.lastIndexOf("</html>");
+    return e !== -1 ? t.slice(s, e + 7) : t.slice(s);
   }
   return null;
 }
