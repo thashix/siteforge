@@ -303,7 +303,9 @@ DO NOT use the same sections for every business.
 - Write in the same language as the brief
 
 ### Quality Checklist:
-- [ ] Hero is full-screen, dramatic, and unique
+- [ ] Hero MUST have a dark overlay (rgba black 50-70%) over the background image
+- [ ] Hero MUST have a large headline text (4-6rem, white or light colored) VISIBLE over the image
+- [ ] Hero MUST have a subtitle and a CTA button
 - [ ] All sections have generous padding (min 80px top/bottom)
 - [ ] Typography: hero title 4-6rem, section titles 2.5-3rem, body 1rem+
 - [ ] Hover effects on ALL interactive elements
@@ -315,7 +317,8 @@ DO NOT use the same sections for every business.
 - [ ] Multi-page navigation works
 - [ ] data-editable attributes on all text/image/link elements
 - [ ] Each page has unique, relevant content
-- [ ] NO Lorem ipsum or placeholder text anywhere`;
+- [ ] NO Lorem ipsum or placeholder text anywhere
+- [ ] Text is ALWAYS readable — use dark overlays on images, proper contrast`;
 }
 
 function buildUserMessage(businessName: string, description: string, seed: string): string {

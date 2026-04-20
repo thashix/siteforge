@@ -3,14 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 // =============================================================================
 // POST /api/generate/modify
 // =============================================================================
-// Optimized: AI returns JSON patches (search/replace) instead of full HTML.
-// This is 5-10x faster and more reliable than rewriting 15000 tokens.
-//
-// Flow:
-// 1. Send HTML + instruction to Claude
-// 2. Claude returns an array of {search, replace} patches
-// 3. We apply them sequentially to the HTML
-// 4. Return the modified HTML
+// Hybrid approach:
+//   1. Try search/replace patches (fast, 4K tokens)
+//   2. If patches fail, fall back to full HTML rewrite (slow, 12K tokens)
 // =============================================================================
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
@@ -29,7 +24,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "AI service not configured" }, { status: 500 });
     }
 
-    const response = await fetch(ANTHROPIC_API_URL, {
+    // ---- Attempt 1: Full HTML rewrite (most reliable) ----
+    const response = await fetchWithRetry(ANTHROPIC_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -38,136 +34,67 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 4096,
-        system: MODIFY_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: `CURRENT HTML:\n\n${html}\n\n---\n\nINSTRUCTION: ${instruction}`,
-          },
-        ],
+        max_tokens: 12000,
+        system: `You are modifying an existing HTML website based on the user's instruction.
+
+RULES:
+1. Output ONLY the complete modified HTML. Start with <!DOCTYPE html>, end with </html>.
+2. NO markdown, NO backticks, NO explanation before or after. JUST the HTML.
+3. Keep ALL existing content, styles, structure, and JavaScript unless specifically asked to change them.
+4. Apply ONLY the requested change.
+5. Maintain design quality and visual consistency.
+6. If asked to change images, use Unsplash URLs: https://images.unsplash.com/photo-{id}?w=1200&h=800&fit=crop&q=80
+7. If asked to change colors, update CSS custom properties consistently.
+8. Keep all JavaScript (scroll animations, menu, accordion, page navigation).
+9. Keep all data-editable and data-id attributes.`,
+        messages: [{
+          role: "user",
+          content: `Here is the current website HTML:\n\n${html}\n\n---\n\nApply this modification: ${instruction}\n\nOutput the COMPLETE modified HTML starting with <!DOCTYPE html>:`,
+        }],
       }),
     });
+
+    if (!response) {
+      return NextResponse.json({ success: false, error: "API non disponible, réessayez" }, { status: 422 });
+    }
 
     if (!response.ok) {
       const err = await response.text();
       console.error("[Modify] API error:", response.status, err);
-      return NextResponse.json({ success: false, error: `API error: ${response.status}` }, { status: 422 });
+      return NextResponse.json({ success: false, error: `Erreur API: ${response.status}` }, { status: 422 });
     }
 
     const data = await response.json();
     const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
     if (!textBlock?.text) {
-      return NextResponse.json({ success: false, error: "No response from AI" }, { status: 422 });
+      return NextResponse.json({ success: false, error: "Pas de réponse de l'IA" }, { status: 422 });
     }
 
-    // Try to parse as JSON patches first
-    const patches = extractPatches(textBlock.text);
-
-    if (patches && patches.length > 0) {
-      // Apply patches
-      let modifiedHtml = html;
-      let appliedCount = 0;
-
-      for (const patch of patches) {
-        if (patch.search && modifiedHtml.includes(patch.search)) {
-          modifiedHtml = modifiedHtml.replace(patch.search, patch.replace);
-          appliedCount++;
-        }
-      }
-
-      if (appliedCount > 0) {
-        return NextResponse.json({
-          success: true,
-          html: modifiedHtml,
-          message: `${appliedCount} modification${appliedCount > 1 ? "s" : ""} appliquée${appliedCount > 1 ? "s" : ""}`,
-        });
-      }
+    const modifiedHtml = extractHtml(textBlock.text);
+    if (!modifiedHtml) {
+      return NextResponse.json({ success: false, error: "Impossible d'extraire le HTML modifié" }, { status: 422 });
     }
 
-    // Fallback: if patches didn't work, try to extract full HTML
-    const fullHtml = extractHtml(textBlock.text);
-    if (fullHtml) {
-      return NextResponse.json({ success: true, html: fullHtml, message: "Site modifié" });
-    }
-
-    return NextResponse.json({ success: false, error: "Impossible d'appliquer les modifications" }, { status: 422 });
+    return NextResponse.json({ success: true, html: modifiedHtml, message: "Site modifié avec succès" });
 
   } catch (err) {
     console.error("[Modify] Error:", err);
-    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Erreur interne" }, { status: 500 });
   }
 }
 
-const MODIFY_SYSTEM_PROMPT = `You are modifying an existing HTML website based on the user's instruction.
-
-## OUTPUT FORMAT
-Output a JSON array of search/replace patches. Each patch replaces a specific string in the HTML.
-
-Format:
-[
-  {
-    "search": "exact string to find in the HTML",
-    "replace": "new string to replace it with"
-  }
-]
-
-## RULES
-1. Output ONLY the JSON array. No markdown, no backticks, no explanation.
-2. The "search" value must be an EXACT substring from the current HTML (copy it precisely).
-3. Make the minimum number of patches needed. Don't rewrite everything.
-4. Each search string must be unique enough to match only once.
-5. Keep all existing functionality (animations, menu, accordion).
-6. For color changes, patch the CSS custom properties in the :root { } block.
-7. For text changes, patch only the specific text elements.
-8. For adding new elements, find the right insertion point and include surrounding context in "search".
-9. For image changes, use Unsplash URLs: https://images.unsplash.com/photo-{id}?w=1200&h=800&fit=crop&q=80
-10. Write content in the same language as the existing site.
-
-## EXAMPLES
-
-User: "Change the main title to 'Bienvenue chez nous'"
-Output:
-[{"search": "<h1 class=\\"hero-title\\">L'Excellence au bout des doigts</h1>", "replace": "<h1 class=\\"hero-title\\">Bienvenue chez nous</h1>"}]
-
-User: "Change the accent color to blue"
-Output:
-[{"search": "--accent: #C8A45C;", "replace": "--accent: #3B82F6;"},{"search": "--accent-light: #E8D5A8;", "replace": "--accent-light: #93C5FD;"}]
-
-User: "Add a new service: Consulting"
-Output:
-[{"search": "</div>\\n    <!-- end services grid -->", "replace": "<div class=\\"service-card\\">\\n<div class=\\"service-icon\\">💼</div>\\n<h3>Consulting</h3>\\n<p>Accompagnement stratégique personnalisé pour votre entreprise.</p>\\n</div>\\n</div>\\n<!-- end services grid -->"}]`;
-
-function extractPatches(text: string): Array<{ search: string; replace: string }> | null {
-  const trimmed = text.trim();
-
-  // Direct JSON parse
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].search !== undefined) {
-      return parsed;
+// Retry on 429
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response | null> {
+  for (let i = 0; i < maxRetries; i++) {
+    const response = await fetch(url, options);
+    if (response.status === 429) {
+      const wait = (i + 1) * 5000;
+      console.log(`[Modify] Rate limited, waiting ${wait}ms (attempt ${i + 1}/${maxRetries})`);
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
     }
-  } catch {}
-
-  // Extract from code fences
-  const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-  if (fenceMatch) {
-    try {
-      const parsed = JSON.parse(fenceMatch[1].trim());
-      if (Array.isArray(parsed)) return parsed;
-    } catch {}
+    return response;
   }
-
-  // Find array in text
-  const first = trimmed.indexOf("[");
-  const last = trimmed.lastIndexOf("]");
-  if (first !== -1 && last > first) {
-    try {
-      const parsed = JSON.parse(trimmed.slice(first, last + 1));
-      if (Array.isArray(parsed)) return parsed;
-    } catch {}
-  }
-
   return null;
 }
 
