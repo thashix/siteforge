@@ -26,10 +26,13 @@ export async function POST(request: NextRequest) {
     }
 
     // -----------------------------------------------------------------------
-    // STEP 1: Search for design inspiration
+    // STEP 1: Try web search for inspiration (skip if rate limited)
     // -----------------------------------------------------------------------
     let inspiration = "";
     try {
+      const searchController = new AbortController();
+      const searchTimeout = setTimeout(() => searchController.abort(), 8000); // 8s timeout
+
       const searchResponse = await fetch(ANTHROPIC_API_URL, {
         method: "POST",
         headers: {
@@ -37,19 +40,19 @@ export async function POST(request: NextRequest) {
           "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
         },
+        signal: searchController.signal,
         body: JSON.stringify({
           model: MODEL,
-          max_tokens: 1500,
+          max_tokens: 800,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: [{
             role: "user",
-            content: `Search for the best website designs for: ${description.slice(0, 200)}. 
-Find 3-5 real websites in this sector and describe their design: colors, layout, typography, hero section style, unique visual elements. 
-Be specific about CSS techniques, animations, and visual effects they use.
-Focus on PREMIUM designs only.`,
+            content: `Find 3 premium website designs for: ${description.slice(0, 150)}. Briefly describe their visual style, colors, and layout.`,
           }],
         }),
       });
+
+      clearTimeout(searchTimeout);
 
       if (searchResponse.ok) {
         const searchData = await searchResponse.json();
@@ -59,9 +62,12 @@ Focus on PREMIUM designs only.`,
           ?.join("\n");
         if (texts) inspiration = texts;
       }
-    } catch (e) {
-      console.log("[Generate] Web search failed, continuing without inspiration:", e);
+    } catch {
+      console.log("[Generate] Web search skipped (timeout or rate limit)");
     }
+
+    // Wait 2 seconds between API calls to avoid rate limiting
+    await new Promise((r) => setTimeout(r, 2000));
 
     // -----------------------------------------------------------------------
     // STEP 2: Generate the full multi-page website
@@ -81,26 +87,39 @@ Focus on PREMIUM designs only.`,
     const systemPrompt = buildSystemPrompt(inspiration);
     const userMessage = buildUserMessage(businessName, description, seed);
 
-    const response = await fetch(ANTHROPIC_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 16000,
-        temperature: 0.85,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
-      }),
-    });
+    // Retry logic for rate limiting
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      response = await fetch(ANTHROPIC_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 12000,
+          temperature: 0.85,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userMessage }],
+        }),
+      });
 
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("[Generate] API error:", response.status, err);
-      return NextResponse.json({ success: false, error: `API error: ${response.status}` }, { status: 422 });
+      if (response.status === 429) {
+        // Rate limited — wait and retry
+        const waitTime = (attempt + 1) * 5000; // 5s, 10s, 15s
+        console.log(`[Generate] Rate limited, waiting ${waitTime}ms (attempt ${attempt + 1}/3)`);
+        await new Promise((r) => setTimeout(r, waitTime));
+        continue;
+      }
+      break;
+    }
+
+    if (!response || !response.ok) {
+      const err = response ? await response.text() : "No response";
+      console.error("[Generate] API error:", response?.status, err);
+      return NextResponse.json({ success: false, error: `API error: ${response?.status || "unknown"}` }, { status: 422 });
     }
 
     const data = await response.json();
