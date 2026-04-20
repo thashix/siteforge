@@ -3,180 +3,87 @@
 import type { TestimonialsContent } from "@/types";
 import type { SectionProps } from "../types";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
-import { SectionWrapper } from "@/components/ui/section-wrapper";
 
-// =============================================================================
-// TESTIMONIALS SECTION
-// =============================================================================
-// Variants:
-//   "cards"  — Testimonial cards in a grid
-//   "large"  — Single large quotes stacked vertically
-// =============================================================================
-
-export function TestimonialsSection({
-  content,
-  variant = "cards",
-  animation,
-  sectionId,
-}: SectionProps<TestimonialsContent>) {
-  if (variant === "large") {
-    return <TestimonialsLarge content={content} animation={animation} sectionId={sectionId} />;
-  }
-  return <TestimonialsCards content={content} animation={animation} sectionId={sectionId} />;
+export function TestimonialsSection({ content, variant = "cards", sectionId }: SectionProps<TestimonialsContent>) {
+  if (variant === "large") return <TestimonialsLarge content={content} sectionId={sectionId} />;
+  return <TestimonialsCards content={content} sectionId={sectionId} />;
 }
 
-// -- Variant: Cards -----------------------------------------------------------
-
-function TestimonialsCards({
-  content,
-  animation,
-  sectionId,
-}: {
-  content: TestimonialsContent;
-  animation: SectionProps["animation"];
-  sectionId?: string;
-}) {
+function TestimonialsCards({ content, sectionId }: { content: TestimonialsContent; sectionId?: string }) {
   return (
-    <SectionWrapper id={sectionId} background="surface">
-      <ScrollReveal config={animation}>
-        <div className="text-center mb-16">
-          <h2
-            className="text-3xl sm:text-4xl md:text-5xl font-[var(--sf-font-heading-weight)] tracking-tight"
-            style={{ fontFamily: "var(--sf-font-heading)", color: "var(--sf-text)" }}
-          >
+    <section id={sectionId} className="py-20 sm:py-28" style={{ backgroundColor: "var(--sf-surface)" }}>
+      <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
+        <ScrollReveal>
+          <h2 className="text-center text-[clamp(1.8rem,4vw,2.8rem)] leading-tight tracking-[-0.02em] mb-4" style={{ fontFamily: "var(--sf-font-heading)", fontWeight: "var(--sf-font-heading-weight)" as string, color: "var(--sf-text)" }}>
             {content.title}
           </h2>
-        </div>
-      </ScrollReveal>
+        </ScrollReveal>
+        <ScrollReveal delay={0.1}><div className="w-12 h-px mx-auto mb-14" style={{ backgroundColor: "var(--sf-primary)" }} /></ScrollReveal>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {content.items.map((item, i) => (
-          <ScrollReveal key={i} config={animation} index={i + 1}>
-            <div
-              className="p-8 rounded-2xl border h-full flex flex-col"
-              style={{
-                backgroundColor: "var(--sf-background)",
-                borderColor: "var(--sf-border)",
-              }}
-            >
-              {/* Quote mark */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {content.items.map((item, i) => (
+            <ScrollReveal key={i} delay={i * 0.08}>
               <div
-                className="text-4xl leading-none mb-4 opacity-30"
-                style={{ color: "var(--sf-primary)", fontFamily: "Georgia, serif" }}
+                className="p-7 sm:p-8 rounded-lg border transition-all duration-300"
+                style={{ backgroundColor: "var(--sf-background)", borderColor: "var(--sf-border)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "color-mix(in srgb, var(--sf-primary) 30%, transparent)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--sf-border)"; }}
               >
-                &ldquo;
-              </div>
+                {/* Quote mark */}
+                <div className="text-4xl leading-none mb-4 opacity-20" style={{ color: "var(--sf-primary)", fontFamily: "Georgia, serif" }}>&ldquo;</div>
 
-              {/* Quote text */}
-              <p
-                className="text-base leading-relaxed flex-1 mb-6"
-                style={{
-                  fontFamily: "var(--sf-font-body)",
-                  color: "var(--sf-text)",
-                  fontStyle: "italic",
-                }}
-              >
-                {item.quote}
-              </p>
+                {/* Quote text */}
+                <p className="text-sm sm:text-base leading-[1.8] mb-6 italic" style={{ fontFamily: "var(--sf-font-body)", color: "var(--sf-text)", fontWeight: 300 }}>
+                  {item.quote}
+                </p>
 
-              {/* Author */}
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
-                  style={{
-                    backgroundColor: "var(--sf-primary)",
-                    color: "var(--sf-background)",
-                  }}
-                >
-                  {item.author.charAt(0)}
-                </div>
-                <div>
-                  <p
-                    className="text-sm font-semibold"
-                    style={{ color: "var(--sf-text)", fontFamily: "var(--sf-font-body)" }}
+                {/* Author */}
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                    style={{ backgroundColor: "var(--sf-primary)", color: "var(--sf-background)" }}
                   >
-                    {item.author}
-                  </p>
-                  {item.role && (
-                    <p
-                      className="text-xs"
-                      style={{ color: "var(--sf-text-muted)", fontFamily: "var(--sf-font-body)" }}
-                    >
-                      {item.role}
-                    </p>
-                  )}
+                    {item.author.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--sf-primary)", fontFamily: "var(--sf-font-body)" }}>{item.author}</p>
+                    {item.role && <p className="text-[11px]" style={{ color: "var(--sf-text-muted)" }}>{item.role}</p>}
+                  </div>
                 </div>
               </div>
-            </div>
-          </ScrollReveal>
-        ))}
+            </ScrollReveal>
+          ))}
+        </div>
       </div>
-    </SectionWrapper>
+    </section>
   );
 }
 
-// -- Variant: Large -----------------------------------------------------------
-
-function TestimonialsLarge({
-  content,
-  animation,
-  sectionId,
-}: {
-  content: TestimonialsContent;
-  animation: SectionProps["animation"];
-  sectionId?: string;
-}) {
+function TestimonialsLarge({ content, sectionId }: { content: TestimonialsContent; sectionId?: string }) {
   return (
-    <SectionWrapper id={sectionId} background="default">
-      <ScrollReveal config={animation}>
-        <h2
-          className="text-3xl sm:text-4xl md:text-5xl font-[var(--sf-font-heading-weight)] tracking-tight text-center mb-20"
-          style={{ fontFamily: "var(--sf-font-heading)", color: "var(--sf-text)" }}
-        >
-          {content.title}
-        </h2>
-      </ScrollReveal>
+    <section id={sectionId} className="py-20 sm:py-28" style={{ backgroundColor: "var(--sf-surface)" }}>
+      <div className="mx-auto max-w-3xl px-6 sm:px-8">
+        <ScrollReveal>
+          <h2 className="text-center text-[clamp(1.8rem,4vw,2.8rem)] leading-tight tracking-[-0.02em] mb-4" style={{ fontFamily: "var(--sf-font-heading)", fontWeight: "var(--sf-font-heading-weight)" as string, color: "var(--sf-text)" }}>
+            {content.title}
+          </h2>
+        </ScrollReveal>
+        <ScrollReveal delay={0.1}><div className="w-12 h-px mx-auto mb-14" style={{ backgroundColor: "var(--sf-primary)" }} /></ScrollReveal>
 
-      <div className="max-w-3xl mx-auto space-y-16">
-        {content.items.map((item, i) => (
-          <ScrollReveal key={i} config={animation} index={i}>
-            <blockquote className="text-center">
-              <p
-                className="text-2xl sm:text-3xl leading-relaxed mb-6"
-                style={{
-                  fontFamily: "var(--sf-font-heading)",
-                  color: "var(--sf-text)",
-                  fontStyle: "italic",
-                }}
-              >
-                &ldquo;{item.quote}&rdquo;
-              </p>
-              <footer>
-                <p
-                  className="text-base font-semibold"
-                  style={{ color: "var(--sf-primary)", fontFamily: "var(--sf-font-body)" }}
-                >
-                  {item.author}
-                </p>
-                {item.role && (
-                  <p
-                    className="text-sm mt-1"
-                    style={{ color: "var(--sf-text-muted)", fontFamily: "var(--sf-font-body)" }}
-                  >
-                    {item.role}
-                  </p>
-                )}
-              </footer>
-            </blockquote>
-            {i < content.items.length - 1 && (
-              <div
-                className="w-12 h-px mx-auto mt-16"
-                style={{ backgroundColor: "var(--sf-border)" }}
-              />
-            )}
-          </ScrollReveal>
-        ))}
+        <div className="space-y-10">
+          {content.items.map((item, i) => (
+            <ScrollReveal key={i} delay={i * 0.1}>
+              <div className="text-center">
+                <div className="text-5xl leading-none mb-5 opacity-15" style={{ color: "var(--sf-primary)", fontFamily: "Georgia, serif" }}>&ldquo;</div>
+                <p className="text-lg sm:text-xl leading-[1.8] mb-6 italic" style={{ fontFamily: "var(--sf-font-body)", color: "var(--sf-text)", fontWeight: 300 }}>{item.quote}</p>
+                <p className="text-sm font-semibold" style={{ color: "var(--sf-primary)" }}>{item.author}</p>
+                {item.role && <p className="text-xs mt-1" style={{ color: "var(--sf-text-muted)" }}>{item.role}</p>}
+                {i < content.items.length - 1 && <div className="w-8 h-px mx-auto mt-10" style={{ backgroundColor: "var(--sf-border)" }} />}
+              </div>
+            </ScrollReveal>
+          ))}
+        </div>
       </div>
-    </SectionWrapper>
+    </section>
   );
 }

@@ -3,151 +3,78 @@
 import type { PricingContent } from "@/types";
 import type { SectionProps } from "../types";
 import { ScrollReveal } from "@/components/ui/scroll-reveal";
-import { SectionWrapper } from "@/components/ui/section-wrapper";
 
-// =============================================================================
-// PRICING SECTION
-// =============================================================================
-// Single variant for MVP: clean pricing cards with highlight support
-// =============================================================================
-
-export function PricingSection({
-  content,
-  animation,
-  sectionId,
-}: SectionProps<PricingContent>) {
+export function PricingSection({ content, sectionId }: SectionProps<PricingContent>) {
   return (
-    <SectionWrapper id={sectionId} background="surface">
-      <ScrollReveal config={animation}>
-        <div className="text-center mb-16">
-          <h2
-            className="text-3xl sm:text-4xl md:text-5xl font-[var(--sf-font-heading-weight)] tracking-tight mb-4"
-            style={{ fontFamily: "var(--sf-font-heading)", color: "var(--sf-text)" }}
-          >
+    <section id={sectionId} className="py-20 sm:py-28" style={{ backgroundColor: "var(--sf-background)" }}>
+      <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
+        <ScrollReveal>
+          <h2 className="text-center text-[clamp(1.8rem,4vw,2.8rem)] leading-tight tracking-[-0.02em] mb-4" style={{ fontFamily: "var(--sf-font-heading)", fontWeight: "var(--sf-font-heading-weight)" as string, color: "var(--sf-text)" }}>
             {content.title}
           </h2>
-          {content.subtitle && (
-            <p
-              className="text-lg max-w-2xl mx-auto"
-              style={{ fontFamily: "var(--sf-font-body)", color: "var(--sf-text-muted)" }}
-            >
-              {content.subtitle}
-            </p>
-          )}
-        </div>
-      </ScrollReveal>
+        </ScrollReveal>
+        {content.subtitle && (
+          <ScrollReveal delay={0.1}>
+            <p className="text-center text-base max-w-lg mx-auto mb-4" style={{ color: "var(--sf-text-muted)", fontWeight: 300 }}>{content.subtitle}</p>
+          </ScrollReveal>
+        )}
+        <ScrollReveal delay={0.15}><div className="w-12 h-px mx-auto mb-14" style={{ backgroundColor: "var(--sf-primary)" }} /></ScrollReveal>
 
-      <div
-        className={`grid gap-6 lg:gap-8 mx-auto ${
-          content.plans.length === 2
-            ? "grid-cols-1 md:grid-cols-2 max-w-3xl"
-            : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-w-5xl"
-        }`}
-      >
-        {content.plans.map((plan, i) => (
-          <ScrollReveal key={i} config={animation} index={i + 1}>
-            <div
-              className={`relative p-8 rounded-2xl border flex flex-col h-full transition-all duration-300 hover:-translate-y-1 ${
-                plan.highlighted ? "ring-2" : ""
-              }`}
-              style={{
-                backgroundColor: plan.highlighted
-                  ? "var(--sf-primary)"
-                  : "var(--sf-background)",
-                borderColor: plan.highlighted
-                  ? "var(--sf-primary)"
-                  : "var(--sf-border)",
-                ...(plan.highlighted ? { ["--card-text" as string]: "var(--sf-background)" } : {}),
-              }}
-            >
-              {plan.highlighted && (
-                <div
-                  className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold"
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-4xl mx-auto">
+          {content.plans.map((plan, i) => (
+            <ScrollReveal key={i} delay={i * 0.1}>
+              <div
+                className="relative p-7 sm:p-8 rounded-lg border text-center transition-all duration-300"
+                style={{
+                  backgroundColor: plan.highlighted ? "var(--sf-primary)" : "var(--sf-surface)",
+                  borderColor: plan.highlighted ? "var(--sf-primary)" : "var(--sf-border)",
+                  color: plan.highlighted ? "var(--sf-background)" : "var(--sf-text)",
+                  transform: plan.highlighted ? "scale(1.02)" : "scale(1)",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = plan.highlighted ? "scale(1.04) translateY(-4px)" : "translateY(-4px)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = plan.highlighted ? "scale(1.02)" : "scale(1)"; }}
+              >
+                {plan.highlighted && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 text-[9px] font-bold tracking-[0.08em] uppercase rounded-full"
+                    style={{ backgroundColor: "var(--sf-text)", color: "var(--sf-background)" }}>
+                    Populaire
+                  </div>
+                )}
+
+                <h3 className="text-lg font-semibold mb-2" style={{ fontFamily: "var(--sf-font-heading)" }}>{plan.name}</h3>
+                <div className="text-4xl font-bold mb-6" style={{ fontFamily: "var(--sf-font-heading)", color: plan.highlighted ? "var(--sf-background)" : "var(--sf-primary)" }}>
+                  {plan.price}
+                </div>
+
+                <ul className="space-y-3 mb-8">
+                  {plan.features.map((f, j) => (
+                    <li key={j} className="text-sm" style={{ color: plan.highlighted ? "color-mix(in srgb, var(--sf-background) 75%, transparent)" : "var(--sf-text-muted)", fontWeight: 300 }}>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  className="w-full py-3 text-[12px] font-bold tracking-[0.05em] uppercase rounded transition-all duration-300 cursor-pointer"
                   style={{
-                    backgroundColor: "var(--sf-accent)",
-                    color: "var(--sf-background)",
+                    backgroundColor: plan.highlighted ? "var(--sf-background)" : "transparent",
+                    color: plan.highlighted ? "var(--sf-primary)" : "var(--sf-primary)",
+                    border: plan.highlighted ? "none" : "1px solid var(--sf-primary)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!plan.highlighted) { e.currentTarget.style.backgroundColor = "var(--sf-primary)"; e.currentTarget.style.color = "var(--sf-background)"; }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!plan.highlighted) { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = "var(--sf-primary)"; }
                   }}
                 >
-                  Populaire
-                </div>
-              )}
-
-              <h3
-                className="text-xl font-semibold mb-2"
-                style={{
-                  fontFamily: "var(--sf-font-heading)",
-                  color: plan.highlighted ? "var(--sf-background)" : "var(--sf-text)",
-                }}
-              >
-                {plan.name}
-              </h3>
-
-              <p
-                className="text-3xl sm:text-4xl font-bold mb-6"
-                style={{
-                  fontFamily: "var(--sf-font-heading)",
-                  color: plan.highlighted ? "var(--sf-background)" : "var(--sf-primary)",
-                }}
-              >
-                {plan.price}
-              </p>
-
-              <ul className="space-y-3 flex-1 mb-8">
-                {plan.features.map((feature, fi) => (
-                  <li
-                    key={fi}
-                    className="flex items-start gap-2 text-sm"
-                    style={{
-                      fontFamily: "var(--sf-font-body)",
-                      color: plan.highlighted
-                        ? "var(--sf-background)"
-                        : "var(--sf-text-muted)",
-                    }}
-                  >
-                    <CheckIcon highlighted={plan.highlighted} />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-
-              <a
-                href="#contact"
-                className="block w-full py-3 text-center text-sm font-semibold rounded-[var(--sf-radius)] transition-all duration-200 hover:scale-[1.02]"
-                style={{
-                  backgroundColor: plan.highlighted
-                    ? "var(--sf-background)"
-                    : "var(--sf-primary)",
-                  color: plan.highlighted
-                    ? "var(--sf-primary)"
-                    : "var(--sf-background)",
-                  fontFamily: "var(--sf-font-body)",
-                }}
-              >
-                Choisir
-              </a>
-            </div>
-          </ScrollReveal>
-        ))}
+                  Choisir
+                </button>
+              </div>
+            </ScrollReveal>
+          ))}
+        </div>
       </div>
-    </SectionWrapper>
-  );
-}
-
-function CheckIcon({ highlighted }: { highlighted?: boolean }) {
-  return (
-    <svg
-      className="w-4 h-4 mt-0.5 flex-shrink-0"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{
-        color: highlighted ? "var(--sf-background)" : "var(--sf-primary)",
-      }}
-    >
-      <path d="M20 6L9 17l-5-5" />
-    </svg>
+    </section>
   );
 }
