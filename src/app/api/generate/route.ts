@@ -156,19 +156,75 @@ GENERAL/CORPORATE:
 - 1497215728101-856f4ea42174 (modern building)
 - 1519389950473-47ba0277781c (conference)
 
-### Structure — MULTI-SECTION ONE-PAGE
-Generate these sections in order:
-1. **Navigation** — Sticky, transparent/blur on scroll, logo text + page anchor links + CTA button
-2. **Hero** — Full-screen with background image, dark overlay (60-70% opacity), massive headline, subtitle, CTA button
-3. **Services** — 3-6 service cards in a grid, icons/emoji, hover effects
-4. **About** — Split layout: image + text with key highlights
-5. **Gallery/Portfolio** — 6 images in a grid with hover zoom + overlay caption
-6. **Testimonials** — 3-4 client quotes with avatar initials, names, roles
-7. **Pricing** — 3 plans, middle one featured/highlighted
-8. **FAQ** — 4-6 accordion items with open/close animation
-9. **CTA Banner** — Full-width colored banner with headline + button
-10. **Contact** — Split: contact info (email, phone, address with icons) + working form
-11. **Footer** — 4 columns (brand+socials, navigation, services, contact) + copyright bar
+FASHION/RETAIL:
+- 1441986300917-64674bd600d8 (clothing store)
+- 1558171813-4c2ab4e38ee0 (fashion model)
+- 1445205170230-053b530db579 (shopping bags)
+- 1490481651871-ab68de25d43d (fashion editorial)
+- 1469334031218-e382a71b716b (wardrobe)
+- 1515886657613-9f3515b0c78f (luxury fashion)
+
+FITNESS/WELLNESS:
+- 1534438327276-14e5300c3a48 (gym interior)
+- 1571019613454-1cb2f99b2d8b (yoga pose)
+- 1517836357463-d25dfeac3438 (fitness workout)
+- 1544367567-0f2fcb009e0b (running)
+- 1518611012118-696072aa579a (healthy food)
+- 1574680096145-d05b474e2155 (meditation)
+
+REAL ESTATE:
+- 1512917774080-9991f1c4c750 (luxury home)
+- 1502672260266-1c1ef2d93688 (modern interior)
+- 1560448204-e02f11c3d0e2 (apartment)
+- 1600596542815-ffad4c1539a9 (kitchen design)
+- 1600585154340-be6161a56a0c (living room)
+- 1523217553-2e1e3f5ded16 (house exterior)
+
+EDUCATION/COACHING:
+- 1524178232363-1fb2b075b655 (university)
+- 1427504494785-3a9ca7044f45 (books library)
+- 1522202176988-66273c2fd55f (classroom)
+- 1531482615713-2afd69097998 (lecture)
+- 1552664730-d307ca884978 (studying)
+- 1509062522246-3755977927d7 (graduation)
+
+### Structure — AI-DRIVEN, UNIQUE PER SITE
+You MUST choose the sections, their order, and their layout based on what makes sense for THIS specific business. DO NOT always use the same structure. Think like a real designer.
+
+Available section types (pick 8-12 that fit the business):
+
+**REQUIRED (always include):**
+- **Navigation** — Sticky header. Be creative: transparent, solid, centered logo, left logo, mega menu...
+- **Hero** — The first impression. Vary the layout: fullscreen image, split-screen, video-style, minimal text, slider feel, overlapping elements...
+- **Footer** — Be creative: 4 columns, 3 columns, minimal, large with newsletter, with map...
+
+**CHOOSE based on the business (pick 5-9):**
+- **Services/Offerings** — Cards, rows, icons, bento grid, alternating left-right, numbered list...
+- **About/Story** — Split image+text, timeline, team grid, full-width story, stats counters...
+- **Gallery/Portfolio** — Grid, masonry, carousel feel, full-bleed images, lightbox style...
+- **Testimonials/Reviews** — Cards, large quotes, slider feel, with ratings, with photos...
+- **Pricing/Packages** — 3 columns, comparison table, simple list, toggle monthly/yearly...
+- **FAQ** — Accordion, two-column, searchable feel, categorized...
+- **Contact** — Form + info, full-width map + form, minimal, with booking calendar mention...
+- **CTA/Banner** — Full-color, gradient, with image background, minimal, with countdown feel...
+- **Features/Benefits** — Icon grid, alternating rows, numbered steps, with illustrations...
+- **Team** — Grid with photos, cards with social links, minimal list...
+- **Process/How it works** — Numbered steps, timeline, icons with arrows...
+- **Stats/Numbers** — Counter section with big numbers and labels...
+- **Blog/News preview** — Article cards with images, dates, excerpts...
+- **Partners/Logos** — Logo bar, grid of client/partner logos...
+- **Newsletter** — Email signup section with compelling copy...
+
+**IMPORTANT LAYOUT RULES:**
+- Alternate between light and dark background sections for visual rhythm
+- Vary section heights — not all sections should be the same size
+- Use different layouts within section types (don't always use the same card grid)
+- The hero MUST be visually stunning and unique — it's what sells the site
+- Think like a designer, not a template engine
+- A restaurant needs a menu section, not a pricing section
+- A photographer needs a massive gallery, not a FAQ
+- A coach needs a process/how-it-works section
+- A boutique needs a lookbook gallery, not a generic portfolio
 
 ### CSS — SOPHISTICATED
 - Use CSS custom properties for the color scheme
