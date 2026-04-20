@@ -64,6 +64,13 @@ export const briefMetaSchema = z.object({
   language: z.string().default("fr"),
 });
 
+export const briefPageSchema = z.object({
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  sections: z.array(sectionTypeSchema).min(1).max(10),
+  sectionContents: z.record(z.string(), z.any()),
+});
+
 export const siteBriefSchema = z.object({
   sector: businessSectorSchema,
   businessName: z.string().min(1),
@@ -71,8 +78,11 @@ export const siteBriefSchema = z.object({
   tone: siteToneSchema,
   paletteKey: z.string().min(1),
   fontPairingKey: z.string().min(1),
-  sections: z.array(sectionTypeSchema).min(3).max(12),
+  sections: z.array(sectionTypeSchema),
   sectionContents: z.record(z.string(), z.any()),
+  pages: z.array(briefPageSchema).optional(),
+  sharedFooter: z.any().optional(),
+  navLinks: z.array(z.object({ label: z.string(), page: z.string() })).optional(),
   meta: briefMetaSchema,
 });
 

@@ -42,12 +42,26 @@ export interface SiteBrief {
   paletteKey: string;
   /** Suggested font pairing key */
   fontPairingKey: string;
-  /** Ordered list of section types to include */
+  /** Ordered list of section types to include (legacy single-page) */
   sections: SectionType[];
-  /** Generated content for each section */
+  /** Generated content for each section (legacy single-page) */
   sectionContents: Record<string, SectionContent>;
+  /** Multi-page structure */
+  pages?: BriefPage[];
+  /** Shared footer content */
+  sharedFooter?: FooterContent;
+  /** Navigation links */
+  navLinks?: Array<{ label: string; page: string }>;
   /** Additional metadata */
   meta: BriefMeta;
+}
+
+/** A page in the multi-page brief */
+export interface BriefPage {
+  name: string;
+  slug: string;
+  sections: SectionType[];
+  sectionContents: Record<string, SectionContent>;
 }
 
 export type BusinessSector =
