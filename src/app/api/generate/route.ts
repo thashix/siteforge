@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // =============================================================================
-// POST /api/generate — Lightweight Single-Page Generation
+// POST /api/generate — Gemini Flash Site Generation
 // =============================================================================
-// Optimized for Anthropic Tier 1 (8K output tokens/min):
-//   - Single page (not multi-page)
-//   - 7K max tokens
-//   - Web search optional with fast timeout
-//   - Retry on 429
+// Uses Google Gemini Flash for site generation:
+//   - 10x cheaper than Claude
+//   - Much higher rate limits
+//   - 1M token context window
+//   - Fast generation
 // =============================================================================
 
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-4-20250514";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,65 +20,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Description trop courte" }, { status: 400 });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ success: false, error: "AI service not configured" }, { status: 500 });
+      return NextResponse.json({ success: false, error: "Gemini API key not configured" }, { status: 500 });
     }
 
-    // Design variety
+    // Design variety seed
     const seeds = [
-      "asymmetric layout with overlapping elements",
-      "cinematic hero with parallax feel",
-      "split-screen hero with image right",
-      "editorial style with large typography",
-      "geometric shapes with strong contrast",
-      "organic curves and soft gradients",
-      "luxury minimal with massive whitespace",
-      "dark immersive with light text",
+      "asymmetric layout with overlapping elements and bold typography",
+      "cinematic hero with parallax feel and dramatic lighting",
+      "split-screen hero with image right and elegant transitions",
+      "editorial magazine style with large whitespace",
+      "geometric shapes with strong contrast and angular design",
+      "organic curves with soft gradients and warm tones",
+      "luxury minimal with massive typography and thin lines",
+      "dark immersive with full-bleed images and neon accents",
     ];
     const seed = seeds[Math.floor(Math.random() * seeds.length)];
 
-    const response = await fetchWithRetry(ANTHROPIC_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 7000,
-        temperature: 0.8,
-        system: SYSTEM_PROMPT,
-        messages: [{
-          role: "user",
-          content: `Business: ${businessName || "Mon Entreprise"}
-Brief: ${description}
-Design direction: ${seed}
+    const prompt = buildPrompt(businessName || "Mon Entreprise", description, seed);
 
-Generate the complete HTML now. Start with <!DOCTYPE html>:`,
-        }],
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.85,
+          maxOutputTokens: 20000,
+        },
       }),
     });
 
-    if (!response) {
-      return NextResponse.json({ success: false, error: "API non disponible, réessayez dans 1 minute" }, { status: 429 });
-    }
-
     if (!response.ok) {
       const err = await response.text();
-      console.error("[Generate] Error:", response.status, err);
-      return NextResponse.json({ success: false, error: `Erreur: ${response.status}` }, { status: 422 });
+      console.error("[Generate] Gemini error:", response.status, err);
+      return NextResponse.json({ success: false, error: `Erreur Gemini: ${response.status}` }, { status: 422 });
     }
 
     const data = await response.json();
-    const text = data.content?.find((b: { type: string }) => b.type === "text")?.text;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
     if (!text) {
-      return NextResponse.json({ success: false, error: "Pas de réponse" }, { status: 422 });
+      console.error("[Generate] No text in Gemini response:", JSON.stringify(data).slice(0, 500));
+      return NextResponse.json({ success: false, error: "Pas de réponse de Gemini" }, { status: 422 });
     }
 
     const html = extractHtml(text);
     if (!html) {
+      console.error("[Generate] Failed to extract HTML, response starts with:", text.slice(0, 200));
       return NextResponse.json({ success: false, error: "HTML invalide" }, { status: 422 });
     }
 
@@ -92,83 +81,99 @@ Generate the complete HTML now. Start with <!DOCTYPE html>:`,
 }
 
 // =============================================================================
-// SYSTEM PROMPT — Compact, single-page, <7K tokens output
+// PROMPT
 // =============================================================================
 
-const SYSTEM_PROMPT = `You are an elite web designer. Generate a COMPLETE standalone HTML file for a premium one-page website.
+function buildPrompt(businessName: string, description: string, seed: string): string {
+  return `You are an elite web designer. Generate a COMPLETE, STANDALONE, PREMIUM HTML file for a website.
 
-OUTPUT: Only HTML. Start with <!DOCTYPE html>, end with </html>. No markdown, no backticks, no explanation.
+BUSINESS: ${businessName}
+BRIEF: ${description}
+DESIGN DIRECTION: ${seed}
 
-STRUCTURE (one page, scroll sections):
-1. Nav — sticky, backdrop-blur, logo + anchor links + CTA button
-2. Hero — MUST have: fullscreen background image with dark overlay (rgba(0,0,0,0.5)), large white headline (4-5rem), subtitle, CTA button
-3. 4-6 more sections chosen from: Services, About, Gallery, Testimonials, Pricing/Menu, FAQ, Stats, CTA Banner, Contact
-4. Footer — columns with brand, links, social icons, copyright
+## RULES
+- Output ONLY the HTML. Start with <!DOCTYPE html>, end with </html>
+- No markdown, no backticks, no explanation. JUST THE HTML CODE.
+- The website must look like it was designed by a top agency charging €10,000+
 
-Choose sections that fit the business. A restaurant needs a Menu, not Pricing. A photographer needs Gallery, not FAQ.
+## STRUCTURE
+Generate a ONE-PAGE website with these scroll sections (choose 8-10 that fit the business):
 
-IMAGES — Use Unsplash:
+REQUIRED:
+- Navigation: sticky, backdrop-blur, logo + anchor links + CTA button. On mobile: hamburger menu.
+- Hero: FULL SCREEN with background image (Unsplash), DARK OVERLAY (rgba(0,0,0,0.5)), LARGE WHITE headline (4-5rem), subtitle, CTA button. The text MUST be visible over the image.
+- Footer: 3-4 columns (brand+tagline+socials, navigation links, services, contact info), copyright bar
+
+CHOOSE 5-7 based on the business:
+- Services/Offerings (cards with icons, hover effects)
+- About/Story (split: image left + text right, or full-width)
+- Gallery/Portfolio (image grid with hover zoom + caption overlay)
+- Testimonials (quote cards with avatar, name, role)
+- Pricing/Menu (3 columns, middle highlighted, or menu items for restaurants)
+- FAQ (accordion with open/close animation)
+- Contact (form with mailto: + contact info with icons)
+- CTA Banner (full-width accent color, headline + button)
+- Stats/Numbers (big counter numbers with labels)
+- Team (grid with photos and roles)
+- Process/How it works (numbered steps)
+
+IMPORTANT: Choose sections that FIT the business. A restaurant needs a Menu section, not Pricing. A photographer needs a big Gallery. A coach needs a Process section.
+
+## IMAGES — Use Unsplash
 https://images.unsplash.com/photo-{ID}?w={W}&h={H}&fit=crop&q=80
 
-IDs by sector:
-- Food: 1517248135467-4c7edcad34c4, 1414235077428-338989a2e8c0, 1504674900247-0877df9cc836, 1555396273-367ea4eb4db5, 1466978913421-dad2ebd01d17
+IDs by sector (use relevant ones):
+- Food: 1517248135467-4c7edcad34c4, 1414235077428-338989a2e8c0, 1504674900247-0877df9cc836, 1555396273-367ea4eb4db5, 1466978913421-dad2ebd01d17, 1528605248644-14dd04022da1
 - Beauty: 1560066984-138dadb4c035, 1522337360788-8b13dee7a37e, 1487412947147-5cebf100ffc2, 1516975080664-ed2fc6a32937
-- Tech: 1497366216548-37526070297c, 1460925895917-afdab827c52f, 1551434678-e076c223a692, 1498050108023-c5249f4df085
+- Tech/Agency: 1497366216548-37526070297c, 1460925895917-afdab827c52f, 1551434678-e076c223a692, 1498050108023-c5249f4df085
 - Photo: 1606993907291-d86efa9b94db, 1554048612-b6a83d2ed2c4, 1542038784456-1ea8e935640e, 1493863641943-9b68992a8d07
 - Fashion: 1441986300917-64674bd600d8, 1558171813-4c2ab4e38ee0, 1490481651871-ab68de25d43d, 1515886657613-9f3515b0c78f
 - Fitness: 1534438327276-14e5300c3a48, 1571019613454-1cb2f99b2d8b, 1517836357463-d25dfeac3438
 - Real Estate: 1512917774080-9991f1c4c750, 1502672260266-1c1ef2d93688, 1600596542815-ffad4c1539a9
 - General: 1486406146926-c627a92ad1ab, 1497366811353-6870744d04b2, 1553877522-43269d4ea984
 
-DESIGN RULES:
-- Google Fonts: 2 fonts (serif/display headings + sans body)
-- CSS custom properties for colors
-- Alternate light/dark section backgrounds
+## DESIGN
+- Google Fonts: 2 fonts (serif/display for headings + sans for body)
+- CSS custom properties in :root for colors
+- Alternate light/dark backgrounds between sections
 - Generous padding: 80-120px per section
-- Hover effects on all cards, buttons, links
-- IntersectionObserver scroll reveal animations
+- Hover effects on ALL cards, buttons, links (transform, shadow, color)
+- IntersectionObserver scroll-reveal animations (fade-up with stagger)
 - Mobile responsive with hamburger menu
 - Form uses mailto: for submission
 - Add data-editable="text" on text elements, data-editable="image" on images
 
 COLOR SCHEMES (pick based on brief):
-- Dark/luxury: bg #0D0D0D, accent #C8A45C
-- Modern/tech: bg #0F172A or #FFF, accent #6366F1
-- Warm/organic: bg #FDFAF5, accent #B5754E
-- Clean/medical: bg #FFF, accent #2563EB
-- Creative: bg #18181B, accent #E24B4A
-- Feminine: bg #FFF5F5, accent #D4748E
+- Dark/luxury: --bg: #0D0D0D, --accent: #C8A45C
+- Modern/tech: --bg: #0F172A or #FFF, --accent: #6366F1
+- Warm/organic: --bg: #FDFAF5, --accent: #B5754E
+- Clean/medical: --bg: #FFF, --accent: #2563EB
+- Creative: --bg: #18181B, --accent: #E24B4A
+- Feminine: --bg: #FFF5F5, --accent: #D4748E
 
 FONTS (pick based on tone):
 - Luxury: Playfair Display + Lato
 - Modern: Space Grotesk + DM Sans
 - Sophisticated: Cormorant Garamond + Montserrat
 - Friendly: Sora + Inter
-- Creative: DM Serif Display + Plus Jakarta Sans
 
-CRITICAL:
-- Hero MUST have visible text (white/light) OVER the dark overlay
-- ALL text must be readable (proper contrast)
-- NO empty sections, NO placeholder text
-- Content must be SPECIFIC to the business (use their name, services, location)
+## CRITICAL CHECKLIST
+- Hero has dark overlay + visible white text + CTA button
+- ALL text is readable (proper contrast everywhere)
+- NO placeholder text, NO Lorem ipsum
+- Content is SPECIFIC to this business
 - Write in the same language as the brief
-- Keep total HTML under 6000 tokens — be concise in CSS, avoid redundancy`;
+- Images are real Unsplash URLs that work
+- Mobile hamburger menu works with JavaScript
+- Scroll reveal animations work
+- Footer has social icons (SVG)
+
+Generate the complete HTML now. Start with <!DOCTYPE html>:`;
+}
 
 // =============================================================================
-
-async function fetchWithRetry(url: string, options: RequestInit, retries = 3): Promise<Response | null> {
-  for (let i = 0; i < retries; i++) {
-    const res = await fetch(url, options);
-    if (res.status === 429) {
-      const wait = (i + 1) * 8000;
-      console.log(`[Generate] Rate limit, waiting ${wait}ms (${i + 1}/${retries})`);
-      await new Promise((r) => setTimeout(r, wait));
-      continue;
-    }
-    return res;
-  }
-  return null;
-}
+// HTML EXTRACTION
+// =============================================================================
 
 function extractHtml(text: string): string | null {
   const t = text.trim();
